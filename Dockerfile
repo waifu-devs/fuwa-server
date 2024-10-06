@@ -3,7 +3,7 @@ WORKDIR /app
 COPY go.* .
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -v -ldflags "-s -X 'main.Version=${GIT_BRANCH}.${GIT_HASH}'" -o fuwa-server .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -v -ldflags "-s" -o fuwa-server .
 
 FROM scratch
 WORKDIR /

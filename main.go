@@ -12,8 +12,6 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
-var Version = ""
-
 //go:embed database/migrations/*.sql
 var dbMigrationsFS embed.FS
 
@@ -56,7 +54,7 @@ func main() {
 		log:      log,
 	}
 	sv.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("fuwa.chat - version: " + Version))
+		w.Write([]byte("fuwa.chat"))
 	})
 	log.Info("listening on :"+port, "port", port)
 	err = sv.ListenAndServe(":" + port)
