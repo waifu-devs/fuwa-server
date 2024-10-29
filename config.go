@@ -40,6 +40,8 @@ func loadConfigFromEnv() *config {
 			panic(err)
 		}
 		c.dataPath = path.Join(homeDir, ".fuwa")
+	} else {
+		c.dataPath = path.Join(c.dataPath, ".fuwa")
 	}
 	switch os.Getenv("FUWA_LOG_LEVEL") {
 	case "debug":

@@ -2,13 +2,11 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"log/slog"
 	"net/http"
 	"strconv"
 
 	"github.com/oklog/ulid/v2"
-	"github.com/waifu-devs/fuwa-server/database"
 )
 
 // httpMux is a HTTP server
@@ -17,14 +15,9 @@ type httpMux struct {
 
 	log *slog.Logger
 
-	// otel stuff
-	// tracer trace.Tracer
+	cfg *config
 
-	writeDBConn *sql.DB
-	readDBConn  *sql.DB
-	readDB      *database.Queries
-	writeDB     *database.Queries
-	cfg         *config
+	serverDBs map[string]*server
 }
 
 type httpResponse struct {

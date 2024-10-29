@@ -24,7 +24,7 @@ func listChannels(mux *httpMux) http.HandlerFunc {
 			w.Write([]byte("invalid server id"))
 			return
 		}
-		channels, err := mux.readDB.ListChannels(r.Context(), database.ListChannelsParams{
+		channels, err := mux.serverDBs[serverID].ListChannels(r.Context(), database.ListChannelsParams{
 			ServerID: validServerID,
 			Limit:    10,
 		})
@@ -74,7 +74,7 @@ func createChannels(mux *httpMux) http.HandlerFunc {
 		}
 		req.ChannelID = ulid.Make()
 		req.CreatedAt = time.Now().UnixMilli()
-		err = mux.writeDB.CreateChannel(r.Context(), req)
+		err = mux.serverDBs[serverID].CreateChannel(r.Context(), req)
 		if err != nil {
 			mux.log.Error("could not create channel", "error", err.Error())
 			w.WriteHeader(http.StatusInternalServerError)
