@@ -11,7 +11,7 @@ WORKDIR /app
 COPY go.* .
 RUN go mod download
 COPY . .
-RUN go build -v -ldflags "-s" -o fuwa-server .
+RUN go build -v -ldflags "-s -extldflags '-static'" -o fuwa-server .
 
 FROM scratch
 WORKDIR /
