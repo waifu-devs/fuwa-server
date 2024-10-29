@@ -4,31 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"runtime"
 
 	"github.com/oklog/ulid/v2"
 	"github.com/waifu-devs/fuwa-server/database"
 )
 
 func setServerRoutes(mux *httpMux) {
-	mux.HandleFunc("GET /servers", listServers(mux))
 	mux.HandleFunc("POST /servers", createServers(mux))
-}
-
-func listServers(mux *httpMux) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		serverID := r.PathValue("serverID")
-		servers, err := mux.serverDBs[serverID].readDB.ListServers(r.Context(), database.ListServersParams{
-			Limit: 10,
-		})
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("could not list servers: " + err.Error()))
-			return
-		}
-		json.NewEncoder(w).Encode(map[string]any{
-			"servers": servers,
-		})
-	}
 }
 
 func validateCreateServerParams(args database.CreateServerParams) error {

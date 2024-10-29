@@ -11,7 +11,6 @@ import (
 )
 
 type Channel struct {
-	ServerID  ulid.ULID `json:"server_id"`
 	ChannelID ulid.ULID `json:"channel_id"`
 	Name      string    `json:"name"`
 	Type      string    `json:"type"`
@@ -20,7 +19,6 @@ type Channel struct {
 
 type ChannelMessage struct {
 	MessageID ulid.ULID      `json:"message_id"`
-	ServerID  ulid.ULID      `json:"server_id"`
 	ChannelID ulid.ULID      `json:"channel_id"`
 	AuthorID  ulid.ULID      `json:"author_id"`
 	Content   sql.NullString `json:"content"`
@@ -28,29 +26,15 @@ type ChannelMessage struct {
 }
 
 type Config struct {
-	ServerID ulid.ULID      `json:"server_id"`
 	ConfigID string         `json:"config_id"`
 	Value    sql.NullString `json:"value"`
 	Public   int64          `json:"public"`
 }
 
 type Role struct {
-	ServerID ulid.ULID `json:"server_id"`
-	RoleID   ulid.ULID `json:"role_id"`
-	Name     string    `json:"name"`
-	Color    int64     `json:"color"`
-}
-
-type Server struct {
-	ServerID ulid.ULID `json:"server_id"`
-	Name     string    `json:"name"`
-}
-
-type ServerUser struct {
-	ServerUserID ulid.ULID `json:"server_user_id"`
-	ServerID     ulid.ULID `json:"server_id"`
-	UserID       ulid.ULID `json:"user_id"`
-	DisplayName  string    `json:"display_name"`
+	RoleID ulid.ULID `json:"role_id"`
+	Name   string    `json:"name"`
+	Color  int64     `json:"color"`
 }
 
 type User struct {
@@ -60,9 +44,8 @@ type User struct {
 }
 
 type UserRole struct {
-	ServerID     ulid.ULID `json:"server_id"`
-	ServerUserID ulid.ULID `json:"server_user_id"`
-	RoleID       ulid.ULID `json:"role_id"`
+	UserID ulid.ULID `json:"user_id"`
+	RoleID ulid.ULID `json:"role_id"`
 }
 
 type UserSession struct {

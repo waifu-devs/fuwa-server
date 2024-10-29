@@ -15,18 +15,16 @@ import (
 const createMessage = `-- name: CreateMessage :exec
 INSERT INTO channel_messages (
 	message_id,
-	server_id,
 	channel_id,
 	author_id,
 	content,
 	timestamp
 )
-VALUES (?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?)
 `
 
 type CreateMessageParams struct {
 	MessageID ulid.ULID      `json:"message_id"`
-	ServerID  ulid.ULID      `json:"server_id"`
 	ChannelID ulid.ULID      `json:"channel_id"`
 	AuthorID  ulid.ULID      `json:"author_id"`
 	Content   sql.NullString `json:"content"`
@@ -36,7 +34,6 @@ type CreateMessageParams struct {
 func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) error {
 	_, err := q.db.ExecContext(ctx, createMessage,
 		arg.MessageID,
-		arg.ServerID,
 		arg.ChannelID,
 		arg.AuthorID,
 		arg.Content,
@@ -46,7 +43,7 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) er
 }
 
 const getMessage = `-- name: GetMessage :one
-SELECT message_id, server_id, channel_id, author_id, content, timestamp FROM channel_messages
+SELECT message_id, channel_id, author_id, content, timestamp FROM channel_messages
 WHERE message_id = ?
 `
 
@@ -55,7 +52,6 @@ func (q *Queries) GetMessage(ctx context.Context, messageID ulid.ULID) (ChannelM
 	var i ChannelMessage
 	err := row.Scan(
 		&i.MessageID,
-		&i.ServerID,
 		&i.ChannelID,
 		&i.AuthorID,
 		&i.Content,
@@ -65,24 +61,18 @@ func (q *Queries) GetMessage(ctx context.Context, messageID ulid.ULID) (ChannelM
 }
 
 const listMessages = `-- name: ListMessages :many
-SELECT message_id, server_id, channel_id, author_id, content, timestamp FROM channel_messages
-WHERE server_id = ? AND channel_id = ? AND message_id > ? LIMIT ?
+SELECT message_id, channel_id, author_id, content, timestamp FROM channel_messages
+WHERE channel_id = ? AND message_id > ? LIMIT ?
 `
 
 type ListMessagesParams struct {
-	ServerID  ulid.ULID `json:"server_id"`
 	ChannelID ulid.ULID `json:"channel_id"`
 	MessageID ulid.ULID `json:"message_id"`
 	Limit     int64     `json:"limit"`
 }
 
 func (q *Queries) ListMessages(ctx context.Context, arg ListMessagesParams) ([]ChannelMessage, error) {
-	rows, err := q.db.QueryContext(ctx, listMessages,
-		arg.ServerID,
-		arg.ChannelID,
-		arg.MessageID,
-		arg.Limit,
-	)
+	rows, err := q.db.QueryContext(ctx, listMessages, arg.ChannelID, arg.MessageID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +82,6 @@ func (q *Queries) ListMessages(ctx context.Context, arg ListMessagesParams) ([]C
 		var i ChannelMessage
 		if err := rows.Scan(
 			&i.MessageID,
-			&i.ServerID,
 			&i.ChannelID,
 			&i.AuthorID,
 			&i.Content,
