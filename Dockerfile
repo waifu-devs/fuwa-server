@@ -1,9 +1,17 @@
-FROM golang:1.23 AS build
+FROM golang:1.23-alpine AS build
+ENV CGO_ENABLED=1
+ENV GOOS=linux
+ENV GOARCH=amd64
+RUN apk add --no-cache \
+	# Important: required for go-sqlite3
+	gcc \
+	# Required for Alpine
+	musl-dev
 WORKDIR /app
 COPY go.* .
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -v -ldflags "-s" -o fuwa-server .
+RUN go build -v -ldflags "-s" -o fuwa-server .
 
 FROM scratch
 WORKDIR /

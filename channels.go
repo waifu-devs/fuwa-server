@@ -65,12 +65,7 @@ func createChannels(mux *httpMux) http.HandlerFunc {
 			w.Write([]byte("invalid params: " + err.Error()))
 			return
 		}
-		req.ServerID, err = ulid.Parse(serverID)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("invalid server id"))
-			return
-		}
+
 		req.ChannelID = ulid.Make()
 		req.CreatedAt = time.Now().UnixMilli()
 		err = mux.serverDBs[serverID].writeDB.CreateChannel(r.Context(), req)
