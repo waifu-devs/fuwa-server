@@ -8,32 +8,31 @@ package database
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	ulid "github.com/oklog/ulid/v2"
 )
 
 const createUser = `-- name: CreateUser :exec
-INSERT INTO users (user_id, fuwa_user_id, joined_at) VALUES ($1, $2, $3)
+INSERT INTO users (user_id, fuwa_user_id, joined_at) VALUES (?, ?, ?)
 `
 
 type CreateUserParams struct {
-	UserID     ulid.ULID        `json:"user_id"`
-	FuwaUserID ulid.ULID        `json:"fuwa_user_id"`
-	JoinedAt   pgtype.Timestamp `json:"joined_at"`
+	UserID     ulid.ULID `json:"user_id"`
+	FuwaUserID ulid.ULID `json:"fuwa_user_id"`
+	JoinedAt   int64     `json:"joined_at"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) error {
-	_, err := q.db.Exec(ctx, createUser, arg.UserID, arg.FuwaUserID, arg.JoinedAt)
+	_, err := q.db.ExecContext(ctx, createUser, arg.UserID, arg.FuwaUserID, arg.JoinedAt)
 	return err
 }
 
 const getUser = `-- name: GetUser :one
 SELECT user_id, fuwa_user_id, joined_at FROM users
-WHERE user_id = $1
+WHERE user_id = ?
 `
 
 func (q *Queries) GetUser(ctx context.Context, userID ulid.ULID) (User, error) {
-	row := q.db.QueryRow(ctx, getUser, userID)
+	row := q.db.QueryRowContext(ctx, getUser, userID)
 	var i User
 	err := row.Scan(&i.UserID, &i.FuwaUserID, &i.JoinedAt)
 	return i, err
@@ -41,16 +40,16 @@ func (q *Queries) GetUser(ctx context.Context, userID ulid.ULID) (User, error) {
 
 const listUsers = `-- name: ListUsers :many
 SELECT user_id, fuwa_user_id, joined_at FROM users
-WHERE user_id > $1 LIMIT $2
+WHERE user_id > ? LIMIT ?
 `
 
 type ListUsersParams struct {
 	UserID ulid.ULID `json:"user_id"`
-	Limit  int32     `json:"limit"`
+	Limit  int64     `json:"limit"`
 }
 
 func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error) {
-	rows, err := q.db.Query(ctx, listUsers, arg.UserID, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, listUsers, arg.UserID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -62,6 +61,9 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

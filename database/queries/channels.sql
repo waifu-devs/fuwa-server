@@ -1,14 +1,19 @@
 -- name: ListChannelsAll :many
-SELECT * FROM channels;
+SELECT * FROM channels WHERE server_id = ?;
 
 -- name: ListChannels :many
 SELECT * FROM channels
-WHERE channel_id > $1 LIMIT $2;
+WHERE server_id = ? AND channel_id > ? LIMIT ?;
 
 -- name: GetChannel :one
 SELECT * FROM channels
-WHERE channel_id = $1;
+WHERE server_id = ? AND channel_id = ?;
 
 -- name: CreateChannel :exec
-INSERT INTO channels (channel_id, name, type, created_at)
-VALUES ($1, $2, $3, $4);
+INSERT INTO channels (server_id, channel_id, name, type, created_at)
+VALUES (?, ?, ?, ?, ?);
+
+-- name: UpdateChannel :exec
+UPDATE channels
+SET name = ?, type = ?
+WHERE server_id = ? AND channel_id = ?;

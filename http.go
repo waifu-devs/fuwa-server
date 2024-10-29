@@ -2,21 +2,29 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"log/slog"
 	"net/http"
 	"strconv"
 
 	"github.com/oklog/ulid/v2"
+	"github.com/waifu-devs/fuwa-server/database"
 )
 
-// httpServer is a HTTP server
-type httpServer struct {
+// httpMux is a HTTP server
+type httpMux struct {
 	*http.ServeMux
 
 	log *slog.Logger
 
 	// otel stuff
 	// tracer trace.Tracer
+
+	writeDBConn *sql.DB
+	readDBConn  *sql.DB
+	readDB      *database.Queries
+	writeDB     *database.Queries
+	cfg         *config
 }
 
 type httpResponse struct {
@@ -41,7 +49,7 @@ type requestIDContextKey string
 
 const RequestIDContextKey requestIDContextKey = "RequestID"
 
-func (s *httpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *httpMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// ctx, span := s.tracer.Start(r.Context(), "request-incoming")
 	// defer span.End()
@@ -68,12 +76,7 @@ func (s *httpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"method", r.Method,
 		"path", r.URL.Path,
 		"status", response.statusCode,
-		"userAgent", r.Header.Get("User-Agent"),
-		"requestId", requestID,
+		"user_agent", r.Header.Get("User-Agent"),
+		"request_id", requestID,
 	)
-}
-
-// ListenAndServe starts the HTTP server
-func (s *httpServer) ListenAndServe(addr string) error {
-	return http.ListenAndServe(addr, s)
 }

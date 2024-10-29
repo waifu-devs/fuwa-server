@@ -5,50 +5,68 @@
 package database
 
 import (
-	"github.com/jackc/pgx/v5/pgtype"
+	"database/sql"
+
 	ulid "github.com/oklog/ulid/v2"
 )
 
 type Channel struct {
-	ChannelID ulid.ULID        `json:"channel_id"`
-	Name      string           `json:"name"`
-	Type      string           `json:"type"`
-	CreatedAt pgtype.Timestamp `json:"created_at"`
+	ServerID  ulid.ULID `json:"server_id"`
+	ChannelID ulid.ULID `json:"channel_id"`
+	Name      string    `json:"name"`
+	Type      string    `json:"type"`
+	CreatedAt int64     `json:"created_at"`
 }
 
 type ChannelMessage struct {
-	MessageID ulid.ULID        `json:"message_id"`
-	ChannelID ulid.ULID        `json:"channel_id"`
-	AuthorID  []byte           `json:"author_id"`
-	Content   pgtype.Text      `json:"content"`
-	Timestamp pgtype.Timestamp `json:"timestamp"`
+	MessageID ulid.ULID      `json:"message_id"`
+	ServerID  ulid.ULID      `json:"server_id"`
+	ChannelID ulid.ULID      `json:"channel_id"`
+	AuthorID  ulid.ULID      `json:"author_id"`
+	Content   sql.NullString `json:"content"`
+	Timestamp int64          `json:"timestamp"`
 }
 
 type Config struct {
-	ID     string      `json:"id"`
-	Value  pgtype.Text `json:"value"`
-	Public bool        `json:"public"`
+	ServerID ulid.ULID      `json:"server_id"`
+	ConfigID string         `json:"config_id"`
+	Value    sql.NullString `json:"value"`
+	Public   int64          `json:"public"`
 }
 
 type Role struct {
-	RoleID ulid.ULID `json:"role_id"`
-	Name   string    `json:"name"`
-	Color  int32     `json:"color"`
+	ServerID ulid.ULID `json:"server_id"`
+	RoleID   ulid.ULID `json:"role_id"`
+	Name     string    `json:"name"`
+	Color    int64     `json:"color"`
+}
+
+type Server struct {
+	ServerID ulid.ULID `json:"server_id"`
+	Name     string    `json:"name"`
+}
+
+type ServerUser struct {
+	ServerUserID ulid.ULID `json:"server_user_id"`
+	ServerID     ulid.ULID `json:"server_id"`
+	UserID       ulid.ULID `json:"user_id"`
+	DisplayName  string    `json:"display_name"`
 }
 
 type User struct {
-	UserID     ulid.ULID        `json:"user_id"`
-	FuwaUserID ulid.ULID        `json:"fuwa_user_id"`
-	JoinedAt   pgtype.Timestamp `json:"joined_at"`
+	UserID     ulid.ULID `json:"user_id"`
+	FuwaUserID ulid.ULID `json:"fuwa_user_id"`
+	JoinedAt   int64     `json:"joined_at"`
 }
 
 type UserRole struct {
-	UserID ulid.ULID `json:"user_id"`
-	RoleID ulid.ULID `json:"role_id"`
+	ServerID     ulid.ULID `json:"server_id"`
+	ServerUserID ulid.ULID `json:"server_user_id"`
+	RoleID       ulid.ULID `json:"role_id"`
 }
 
 type UserSession struct {
-	SessionID ulid.ULID        `json:"session_id"`
-	UserID    ulid.ULID        `json:"user_id"`
-	ExpiresAt pgtype.Timestamp `json:"expires_at"`
+	SessionID ulid.ULID `json:"session_id"`
+	UserID    ulid.ULID `json:"user_id"`
+	ExpiresAt int64     `json:"expires_at"`
 }

@@ -8,24 +8,25 @@ package database
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	ulid "github.com/oklog/ulid/v2"
 )
 
 const createChannel = `-- name: CreateChannel :exec
-INSERT INTO channels (channel_id, name, type, created_at)
-VALUES ($1, $2, $3, $4)
+INSERT INTO channels (server_id, channel_id, name, type, created_at)
+VALUES (?, ?, ?, ?, ?)
 `
 
 type CreateChannelParams struct {
-	ChannelID ulid.ULID        `json:"channel_id"`
-	Name      string           `json:"name"`
-	Type      string           `json:"type"`
-	CreatedAt pgtype.Timestamp `json:"created_at"`
+	ServerID  ulid.ULID `json:"server_id"`
+	ChannelID ulid.ULID `json:"channel_id"`
+	Name      string    `json:"name"`
+	Type      string    `json:"type"`
+	CreatedAt int64     `json:"created_at"`
 }
 
 func (q *Queries) CreateChannel(ctx context.Context, arg CreateChannelParams) error {
-	_, err := q.db.Exec(ctx, createChannel,
+	_, err := q.db.ExecContext(ctx, createChannel,
+		arg.ServerID,
 		arg.ChannelID,
 		arg.Name,
 		arg.Type,
@@ -35,14 +36,20 @@ func (q *Queries) CreateChannel(ctx context.Context, arg CreateChannelParams) er
 }
 
 const getChannel = `-- name: GetChannel :one
-SELECT channel_id, name, type, created_at FROM channels
-WHERE channel_id = $1
+SELECT server_id, channel_id, name, type, created_at FROM channels
+WHERE server_id = ? AND channel_id = ?
 `
 
-func (q *Queries) GetChannel(ctx context.Context, channelID ulid.ULID) (Channel, error) {
-	row := q.db.QueryRow(ctx, getChannel, channelID)
+type GetChannelParams struct {
+	ServerID  ulid.ULID `json:"server_id"`
+	ChannelID ulid.ULID `json:"channel_id"`
+}
+
+func (q *Queries) GetChannel(ctx context.Context, arg GetChannelParams) (Channel, error) {
+	row := q.db.QueryRowContext(ctx, getChannel, arg.ServerID, arg.ChannelID)
 	var i Channel
 	err := row.Scan(
+		&i.ServerID,
 		&i.ChannelID,
 		&i.Name,
 		&i.Type,
@@ -52,17 +59,18 @@ func (q *Queries) GetChannel(ctx context.Context, channelID ulid.ULID) (Channel,
 }
 
 const listChannels = `-- name: ListChannels :many
-SELECT channel_id, name, type, created_at FROM channels
-WHERE channel_id > $1 LIMIT $2
+SELECT server_id, channel_id, name, type, created_at FROM channels
+WHERE server_id = ? AND channel_id > ? LIMIT ?
 `
 
 type ListChannelsParams struct {
+	ServerID  ulid.ULID `json:"server_id"`
 	ChannelID ulid.ULID `json:"channel_id"`
-	Limit     int32     `json:"limit"`
+	Limit     int64     `json:"limit"`
 }
 
 func (q *Queries) ListChannels(ctx context.Context, arg ListChannelsParams) ([]Channel, error) {
-	rows, err := q.db.Query(ctx, listChannels, arg.ChannelID, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, listChannels, arg.ServerID, arg.ChannelID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -71,6 +79,7 @@ func (q *Queries) ListChannels(ctx context.Context, arg ListChannelsParams) ([]C
 	for rows.Next() {
 		var i Channel
 		if err := rows.Scan(
+			&i.ServerID,
 			&i.ChannelID,
 			&i.Name,
 			&i.Type,
@@ -79,6 +88,9 @@ func (q *Queries) ListChannels(ctx context.Context, arg ListChannelsParams) ([]C
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -87,11 +99,11 @@ func (q *Queries) ListChannels(ctx context.Context, arg ListChannelsParams) ([]C
 }
 
 const listChannelsAll = `-- name: ListChannelsAll :many
-SELECT channel_id, name, type, created_at FROM channels
+SELECT server_id, channel_id, name, type, created_at FROM channels WHERE server_id = ?
 `
 
-func (q *Queries) ListChannelsAll(ctx context.Context) ([]Channel, error) {
-	rows, err := q.db.Query(ctx, listChannelsAll)
+func (q *Queries) ListChannelsAll(ctx context.Context, serverID ulid.ULID) ([]Channel, error) {
+	rows, err := q.db.QueryContext(ctx, listChannelsAll, serverID)
 	if err != nil {
 		return nil, err
 	}
@@ -100,6 +112,7 @@ func (q *Queries) ListChannelsAll(ctx context.Context) ([]Channel, error) {
 	for rows.Next() {
 		var i Channel
 		if err := rows.Scan(
+			&i.ServerID,
 			&i.ChannelID,
 			&i.Name,
 			&i.Type,
@@ -109,8 +122,34 @@ func (q *Queries) ListChannelsAll(ctx context.Context) ([]Channel, error) {
 		}
 		items = append(items, i)
 	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateChannel = `-- name: UpdateChannel :exec
+UPDATE channels
+SET name = ?, type = ?
+WHERE server_id = ? AND channel_id = ?
+`
+
+type UpdateChannelParams struct {
+	Name      string    `json:"name"`
+	Type      string    `json:"type"`
+	ServerID  ulid.ULID `json:"server_id"`
+	ChannelID ulid.ULID `json:"channel_id"`
+}
+
+func (q *Queries) UpdateChannel(ctx context.Context, arg UpdateChannelParams) error {
+	_, err := q.db.ExecContext(ctx, updateChannel,
+		arg.Name,
+		arg.Type,
+		arg.ServerID,
+		arg.ChannelID,
+	)
+	return err
 }

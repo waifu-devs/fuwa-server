@@ -1,21 +1,30 @@
 -- +goose Up
 CREATE TABLE channel_messages (
-	message_id BYTEA NOT NULL PRIMARY KEY,
-	channel_id BYTEA NOT NULL,
-	author_id BYTEA,
+	message_id BLOB NOT NULL CONSTRAINT channel_messages_pk PRIMARY KEY,
+	server_id BLOB NOT NULL,
+	channel_id BLOB NOT NULL,
+	author_id BLOB NOT NULL,
 	content TEXT,
-	timestamp TIMESTAMP NOT NULL
+	timestamp INTEGER NOT NULL,
+
+	CONSTRAINT channel_messages_server_id_fk
+	FOREIGN KEY (server_id)
+	REFERENCES servers (server_id)
+	ON DELETE CASCADE
+	ON UPDATE CASCADE,
+
+	CONSTRAINT channel_messages_channel_id_fk
+	FOREIGN KEY (server_id, channel_id)
+	REFERENCES channels (server_id, channel_id)
+	ON DELETE CASCADE
+	ON UPDATE CASCADE,
+
+	CONSTRAINT channel_messages_author_id_fk
+	FOREIGN KEY (author_id)
+	REFERENCES server_users (server_user_id)
+	ON DELETE CASCADE
+	ON UPDATE CASCADE
 );
 
-ALTER TABLE channel_messages
-ADD CONSTRAINT channel_messages_channel_id_fk
-FOREIGN KEY (channel_id)
-REFERENCES channels (channel_id)
-ON DELETE CASCADE
-ON UPDATE CASCADE;
-
 -- +goose Down
-ALTER TABLE channel_messages
-DROP CONSTRAINT channel_messages_channel_id_fk;
-
 DROP TABLE channel_messages;

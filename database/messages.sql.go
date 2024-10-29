@@ -7,33 +7,36 @@ package database
 
 import (
 	"context"
+	"database/sql"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	ulid "github.com/oklog/ulid/v2"
 )
 
 const createMessage = `-- name: CreateMessage :exec
 INSERT INTO channel_messages (
 	message_id,
+	server_id,
 	channel_id,
 	author_id,
 	content,
 	timestamp
 )
-VALUES ($1, $2, $3, $4, $5)
+VALUES (?, ?, ?, ?, ?, ?)
 `
 
 type CreateMessageParams struct {
-	MessageID ulid.ULID        `json:"message_id"`
-	ChannelID ulid.ULID        `json:"channel_id"`
-	AuthorID  []byte           `json:"author_id"`
-	Content   pgtype.Text      `json:"content"`
-	Timestamp pgtype.Timestamp `json:"timestamp"`
+	MessageID ulid.ULID      `json:"message_id"`
+	ServerID  ulid.ULID      `json:"server_id"`
+	ChannelID ulid.ULID      `json:"channel_id"`
+	AuthorID  ulid.ULID      `json:"author_id"`
+	Content   sql.NullString `json:"content"`
+	Timestamp int64          `json:"timestamp"`
 }
 
 func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) error {
-	_, err := q.db.Exec(ctx, createMessage,
+	_, err := q.db.ExecContext(ctx, createMessage,
 		arg.MessageID,
+		arg.ServerID,
 		arg.ChannelID,
 		arg.AuthorID,
 		arg.Content,
@@ -43,15 +46,16 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) er
 }
 
 const getMessage = `-- name: GetMessage :one
-SELECT message_id, channel_id, author_id, content, timestamp FROM channel_messages
-WHERE message_id = $1
+SELECT message_id, server_id, channel_id, author_id, content, timestamp FROM channel_messages
+WHERE message_id = ?
 `
 
 func (q *Queries) GetMessage(ctx context.Context, messageID ulid.ULID) (ChannelMessage, error) {
-	row := q.db.QueryRow(ctx, getMessage, messageID)
+	row := q.db.QueryRowContext(ctx, getMessage, messageID)
 	var i ChannelMessage
 	err := row.Scan(
 		&i.MessageID,
+		&i.ServerID,
 		&i.ChannelID,
 		&i.AuthorID,
 		&i.Content,
@@ -61,18 +65,24 @@ func (q *Queries) GetMessage(ctx context.Context, messageID ulid.ULID) (ChannelM
 }
 
 const listMessages = `-- name: ListMessages :many
-SELECT message_id, channel_id, author_id, content, timestamp FROM channel_messages
-WHERE channel_id = $1 AND message_id > $2 LIMIT $3
+SELECT message_id, server_id, channel_id, author_id, content, timestamp FROM channel_messages
+WHERE server_id = ? AND channel_id = ? AND message_id > ? LIMIT ?
 `
 
 type ListMessagesParams struct {
+	ServerID  ulid.ULID `json:"server_id"`
 	ChannelID ulid.ULID `json:"channel_id"`
 	MessageID ulid.ULID `json:"message_id"`
-	Limit     int32     `json:"limit"`
+	Limit     int64     `json:"limit"`
 }
 
 func (q *Queries) ListMessages(ctx context.Context, arg ListMessagesParams) ([]ChannelMessage, error) {
-	rows, err := q.db.Query(ctx, listMessages, arg.ChannelID, arg.MessageID, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, listMessages,
+		arg.ServerID,
+		arg.ChannelID,
+		arg.MessageID,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -82,6 +92,7 @@ func (q *Queries) ListMessages(ctx context.Context, arg ListMessagesParams) ([]C
 		var i ChannelMessage
 		if err := rows.Scan(
 			&i.MessageID,
+			&i.ServerID,
 			&i.ChannelID,
 			&i.AuthorID,
 			&i.Content,
@@ -90,6 +101,9 @@ func (q *Queries) ListMessages(ctx context.Context, arg ListMessagesParams) ([]C
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
