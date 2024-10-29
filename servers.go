@@ -16,7 +16,8 @@ func setServerRoutes(mux *httpMux) {
 
 func listServers(mux *httpMux) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		servers, err := mux.readDB.ListServers(r.Context(), database.ListServersParams{
+		serverID := r.PathValue("serverID")
+		servers, err := mux.serverDBs[serverID].readDB.ListServers(r.Context(), database.ListServersParams{
 			Limit: 10,
 		})
 		if err != nil {
@@ -54,13 +55,42 @@ func createServers(mux *httpMux) http.HandlerFunc {
 			return
 		}
 		req.ServerID = ulid.Make()
-		err = mux.writeDB.CreateServer(r.Context(), req)
+
+		// Create a new database file for the new server
+		writeDB, err := createDatabaseConnection(mux.cfg, req.ServerID.String(), 1)
+		if err != nil {
+			mux.log.Error("could not create database for new server", "error", err.Error())
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("could not create database: " + err.Error()))
+			return
+		}
+		readDB, err := createDatabaseConnection(mux.cfg, req.ServerID.String(), max(4, runtime.NumCPU()))
+		if err != nil {
+			mux.log.Error("could not create database for new server", "error", err.Error())
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("could not create database: " + err.Error()))
+			return
+		}
+		defer writeDB.Close()
+		defer readDB.Close()
+
+		// Apply migrations to the new database
+		applyMigrations(writeDB, mux.log)
+
+		// Add the new database connection to the serverDBs map
+		mux.serverDBs[req.ServerID.String()] = &server{
+			readDB:  database.New(readDB),
+			writeDB: database.New(writeDB),
+		}
+
+		err = mux.serverDBs[req.ServerID.String()].writeDB.CreateServer(r.Context(), req)
 		if err != nil {
 			mux.log.Error("could not create server", "error", err.Error())
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte("could not create: " + err.Error()))
 			return
 		}
+
 		json.NewEncoder(w).Encode(map[string]any{
 			"server": req,
 		})

@@ -21,6 +21,13 @@ import (
 //go:embed database/migrations/*.sql
 var dbMigrationsFS embed.FS
 
+type server struct {
+	readDB  *database.Queries
+	writeDB *database.Queries
+}
+
+var serverConnections map[string]*server
+
 func main() {
 	// ctx := context.Background()
 	cfg := loadConfigFromEnv()
@@ -43,46 +50,44 @@ func main() {
 		log.Error("could not create data directory", "error", err.Error())
 		panic(err)
 	}
-	// Create the database connection
-	writeDB, err := createDatabaseConnection(cfg, 1)
+
+	// Initialize the serverConnections map
+	serverConnections = make(map[string]*server)
+
+	// List all files in the cfg.dataPath directory
+	files, err := os.ReadDir(cfg.dataPath)
 	if err != nil {
-		log.Error("could not connect to database", "error", err.Error())
+		log.Error("could not read data directory", "error", err.Error())
 		panic(err)
 	}
-	defer func() {
-		log.Debug("closing write database connection")
-		if closeError := writeDB.Close(); closeError != nil {
-			log.Error("error closing database", "error", closeError)
-			if err == nil {
-				err = closeError
-			}
+
+	// Create connections to all the databases
+	for _, file := range files {
+		if file.IsDir() {
+			continue
 		}
-	}()
-	readDB, err := createDatabaseConnection(cfg, max(4, runtime.NumCPU()))
-	if err != nil {
-		log.Error("could not connect to database", "error", err.Error())
-		panic(err)
-	}
-	defer func() {
-		log.Debug("closing read database connection")
-		if closeError := readDB.Close(); closeError != nil {
-			log.Error("error closing database", "error", closeError)
-			if err == nil {
-				err = closeError
-			}
+		serverID := file.Name()
+		writeDB, err := createDatabaseConnection(cfg, serverID, 1)
+		if err != nil {
+			log.Error("could not connect to database", "error", err.Error())
+			panic(err)
 		}
-	}()
-	if !cfg.isWorker {
-		applyMigrations(writeDB, log)
+		readDB, err := createDatabaseConnection(cfg, serverID, max(4, runtime.NumCPU()))
+		if err != nil {
+			log.Error("could not connect to database", "error", err.Error())
+			panic(err)
+		}
+		serverConnections[serverID] = &server{
+			readDB:  database.New(readDB),
+			writeDB: database.New(writeDB),
+		}
 	}
+
 	mux := &httpMux{
 		ServeMux:    http.NewServeMux(),
 		log:         log,
-		writeDBConn: writeDB,
-		readDBConn:  readDB,
-		writeDB:     database.New(writeDB),
-		readDB:      database.New(readDB),
 		cfg:         cfg,
+		serverDBs:   serverConnections,
 	}
 	server := &http.Server{
 		Addr:              ":" + cfg.port,
@@ -110,7 +115,7 @@ func main() {
 	}
 }
 
-func createConnectionString(cfg *config) string {
+func createConnectionString(cfg *config, serverID string) string {
 	connectionUrlParams := make(url.Values)
 	connectionUrlParams.Add("_txlock", "immediate")
 	connectionUrlParams.Add("_journal_mode", "WAL")
@@ -118,11 +123,11 @@ func createConnectionString(cfg *config) string {
 	connectionUrlParams.Add("_synchronous", "NORMAL")
 	connectionUrlParams.Add("_cache_size", "1000000000")
 	connectionUrlParams.Add("_foreign_keys", "true")
-	return fmt.Sprintf("file:%s?%s", path.Join(cfg.dataPath, "fuwa.db"), connectionUrlParams.Encode())
+	return fmt.Sprintf("file:%s?%s", path.Join(cfg.dataPath, fmt.Sprintf("%s.db", serverID)), connectionUrlParams.Encode())
 }
 
-func createDatabaseConnection(cfg *config, maxOpenConns int) (*sql.DB, error) {
-	db, err := sql.Open("sqlite3", createConnectionString(cfg))
+func createDatabaseConnection(cfg *config, serverID string, maxOpenConns int) (*sql.DB, error) {
+	db, err := sql.Open("sqlite3", createConnectionString(cfg, serverID))
 	if err != nil {
 		return nil, err
 	}
