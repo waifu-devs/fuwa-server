@@ -18,13 +18,14 @@ func setChannelRoutes(mux *httpMux) {
 func listChannels(mux *httpMux) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		serverID := r.PathValue("serverID")
-		validServerID, err := ulid.Parse(serverID)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("invalid server id"))
+		readDBI, ok := mux.serverDBs.Load(serverID)
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte("server not found"))
 			return
 		}
-		channels, err := mux.serverDBs[validServerID.String()].readDB.ListChannels(r.Context(), database.ListChannelsParams{
+		readDB := readDBI.(*server).readDB
+		channels, err := readDB.ListChannels(r.Context(), database.ListChannelsParams{
 			Limit: 10,
 		})
 		if err != nil {
@@ -65,10 +66,17 @@ func createChannels(mux *httpMux) http.HandlerFunc {
 			w.Write([]byte("invalid params: " + err.Error()))
 			return
 		}
+		writeDBI, ok := mux.serverDBs.Load(serverID)
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte("server not found"))
+			return
+		}
+		writeDB := writeDBI.(*server).writeDB
 
 		req.ChannelID = ulid.Make()
 		req.CreatedAt = time.Now().UnixMilli()
-		err = mux.serverDBs[serverID].writeDB.CreateChannel(r.Context(), req)
+		err = writeDB.CreateChannel(r.Context(), req)
 		if err != nil {
 			mux.log.Error("could not create channel", "error", err.Error())
 			w.WriteHeader(http.StatusInternalServerError)

@@ -11,7 +11,8 @@ import (
 	"os/signal"
 	"path"
 	"runtime"
-	"time"
+	"strings"
+	"sync"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
@@ -25,8 +26,6 @@ type server struct {
 	readDB  *database.Queries
 	writeDB *database.Queries
 }
-
-var serverConnections map[string]*server
 
 func main() {
 	// ctx := context.Background()
@@ -52,7 +51,7 @@ func main() {
 	}
 
 	// Initialize the serverConnections map
-	serverConnections = make(map[string]*server)
+	serverConnections := &sync.Map{}
 
 	// List all files in the cfg.dataPath directory
 	files, err := os.ReadDir(cfg.dataPath)
@@ -67,33 +66,39 @@ func main() {
 			continue
 		}
 		serverID := file.Name()
+		if path.Ext(serverID) != ".db" {
+			continue
+		}
 		writeDB, err := createDatabaseConnection(cfg, serverID, 1)
 		if err != nil {
 			log.Error("could not connect to database", "error", err.Error())
 			panic(err)
 		}
+		defer writeDB.Close()
 		readDB, err := createDatabaseConnection(cfg, serverID, max(4, runtime.NumCPU()))
 		if err != nil {
 			log.Error("could not connect to database", "error", err.Error())
 			panic(err)
 		}
-		serverConnections[serverID] = &server{
+		defer readDB.Close()
+		serverConnections.Store(strings.TrimSuffix(serverID, ".db"), &server{
 			readDB:  database.New(readDB),
 			writeDB: database.New(writeDB),
-		}
+		})
+		applyMigrations(writeDB, log)
 	}
 
 	mux := &httpMux{
-		ServeMux:    http.NewServeMux(),
-		log:         log,
-		cfg:         cfg,
-		serverDBs:   serverConnections,
+		ServeMux:  http.NewServeMux(),
+		log:       log,
+		cfg:       cfg,
+		serverDBs: serverConnections,
 	}
 	server := &http.Server{
-		Addr:              ":" + cfg.port,
-		Handler:           mux,
-		WriteTimeout:      10 * time.Second,
-		ReadHeaderTimeout: 10 * time.Second,
+		Addr:    ":" + cfg.port,
+		Handler: mux,
+		// WriteTimeout:      10 * time.Second,
+		// ReadHeaderTimeout: 10 * time.Second,
 	}
 	setServerRoutes(mux)
 	setChannelRoutes(mux)
@@ -124,7 +129,7 @@ func createConnectionString(cfg *config, serverID string) string {
 	connectionUrlParams.Add("_synchronous", "NORMAL")
 	connectionUrlParams.Add("_cache_size", "1000000000")
 	connectionUrlParams.Add("_foreign_keys", "true")
-	return fmt.Sprintf("file:%s?%s", path.Join(cfg.dataPath, fmt.Sprintf("%s.db", serverID)), connectionUrlParams.Encode())
+	return fmt.Sprintf("file:%s?%s", path.Join(cfg.dataPath, fmt.Sprintf("%s", serverID)), connectionUrlParams.Encode())
 }
 
 func createDatabaseConnection(cfg *config, serverID string, maxOpenConns int) (*sql.DB, error) {

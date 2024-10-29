@@ -7,7 +7,6 @@ package database
 
 import (
 	"context"
-	"database/sql"
 
 	ulid "github.com/oklog/ulid/v2"
 )
@@ -24,11 +23,11 @@ VALUES (?, ?, ?, ?, ?)
 `
 
 type CreateMessageParams struct {
-	MessageID ulid.ULID      `json:"message_id"`
-	ChannelID ulid.ULID      `json:"channel_id"`
-	AuthorID  ulid.ULID      `json:"author_id"`
-	Content   sql.NullString `json:"content"`
-	Timestamp int64          `json:"timestamp"`
+	MessageID ulid.ULID `json:"message_id"`
+	ChannelID ulid.ULID `json:"channel_id"`
+	AuthorID  []byte    `json:"author_id"`
+	Content   string    `json:"content"`
+	Timestamp int64     `json:"timestamp"`
 }
 
 func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) error {

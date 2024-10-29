@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"sync"
 
 	"github.com/oklog/ulid/v2"
 )
@@ -17,7 +18,7 @@ type httpMux struct {
 
 	cfg *config
 
-	serverDBs map[string]*server
+	serverDBs *sync.Map
 }
 
 type httpResponse struct {
@@ -36,6 +37,10 @@ func (r *httpResponse) Write(b []byte) (int, error) {
 func (r *httpResponse) WriteHeader(statusCode int) {
 	r.statusCode = statusCode
 	r.w.WriteHeader(statusCode)
+}
+
+func (r *httpResponse) Flush() {
+	r.w.(http.Flusher).Flush()
 }
 
 type requestIDContextKey string
@@ -62,7 +67,7 @@ func (s *httpMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	response.w.Header().Set("X-Fuwa-Request-Id", requestID.String())
 
 	// Handle the request
-	s.ServeMux.ServeHTTP(response, r)
+	s.ServeMux.ServeHTTP(w, r)
 
 	s.log.Info(
 		r.Method+" ["+strconv.FormatInt(int64(response.statusCode), 10)+"] "+r.URL.Path,

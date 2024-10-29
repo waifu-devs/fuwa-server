@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"time"
 
@@ -30,14 +29,21 @@ func createMessage(mux *httpMux) http.HandlerFunc {
 			return
 		}
 		req.MessageID = ulid.Make()
+		req.Timestamp = time.Now().UnixMilli()
 		req.ChannelID, err = ulid.Parse(channelID)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte("invalid channel id"))
 			return
 		}
-		req.Timestamp = time.Now().UnixMilli()
-		err = mux.serverDBs[serverID].writeDB.CreateMessage(r.Context(), req)
+		writeDBI, ok := mux.serverDBs.Load(serverID)
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte("server not found"))
+			return
+		}
+		writeDB := writeDBI.(*server).writeDB
+		err = writeDB.CreateMessage(r.Context(), req)
 		if err != nil {
 			mux.log.Error("could not create message", "error", err.Error())
 			w.WriteHeader(http.StatusInternalServerError)
@@ -61,7 +67,14 @@ func getMessage(mux *httpMux) http.HandlerFunc {
 			w.Write([]byte("invalid message id"))
 			return
 		}
-		message, err := mux.serverDBs[serverID].readDB.GetMessage(r.Context(), validMessageID)
+		readDBI, ok := mux.serverDBs.Load(serverID)
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte("server not found"))
+			return
+		}
+		readDB := readDBI.(*server).readDB
+		message, err := readDB.GetMessage(r.Context(), validMessageID)
 		if err != nil {
 			mux.log.Error("could not get message", "error", err.Error())
 			w.WriteHeader(http.StatusInternalServerError)
@@ -95,7 +108,14 @@ func listMessages(mux *httpMux) http.HandlerFunc {
 		} else {
 			validMessageID = ulid.ULID{}
 		}
-		messages, err := mux.serverDBs[serverID].readDB.ListMessages(r.Context(), database.ListMessagesParams{
+		readDBI, ok := mux.serverDBs.Load(serverID)
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte("server not found"))
+			return
+		}
+		readDB := readDBI.(*server).readDB
+		messages, err := readDB.ListMessages(r.Context(), database.ListMessagesParams{
 			ChannelID: validChannelID,
 			MessageID: validMessageID,
 			Limit:     10,
@@ -134,15 +154,22 @@ func subscribeMessages(mux *httpMux) http.HandlerFunc {
 		} else {
 			validMessageID = ulid.ULID{}
 		}
+		readDBI, ok := mux.serverDBs.Load(serverID)
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte("server not found"))
+			return
+		}
+		readDB := readDBI.(*server).readDB
 
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
+		w.(http.Flusher).Flush()
 
 		lastSentMessageID := validMessageID
 
 		for {
-			messages, err := mux.serverDBs[serverID].readDB.ListMessages(r.Context(), database.ListMessagesParams{
+			messages, err := readDB.ListMessages(r.Context(), database.ListMessagesParams{
 				ChannelID: validChannelID,
 				MessageID: lastSentMessageID,
 				Limit:     10,
@@ -155,18 +182,23 @@ func subscribeMessages(mux *httpMux) http.HandlerFunc {
 			}
 
 			for _, message := range messages {
-				event := struct {
-					ID      string `json:"id"`
-					Event   string `json:"event"`
-					Data    any    `json:"data"`
-				}{
-					ID:    message.MessageID.String(),
-					Event: "message",
-					Data:  message,
+				jsonMsg, err := json.Marshal(message)
+				if err != nil {
+					mux.log.Error("could not marshal message", "error", err.Error())
+					w.WriteHeader(http.StatusInternalServerError)
+					return
 				}
-				json.NewEncoder(w).Encode(event)
+				w.Write([]byte("id: " + message.MessageID.String() + "\n"))
+				w.Write([]byte("event: message\n"))
+				w.Write([]byte("data: " + string(jsonMsg) + "\n"))
+				w.Write([]byte("retry: 2500\n\n"))
 				w.(http.Flusher).Flush()
 				lastSentMessageID = message.MessageID
+			}
+
+			if len(messages) == 0 {
+				w.Write([]byte(": ping\n\n"))
+				w.(http.Flusher).Flush()
 			}
 
 			time.Sleep(500 * time.Millisecond)

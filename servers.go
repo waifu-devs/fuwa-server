@@ -30,14 +30,14 @@ func createServers(mux *httpMux) http.HandlerFunc {
 		serverID := ulid.Make()
 
 		// Create a new database file for the new server
-		writeDB, err := createDatabaseConnection(mux.cfg, serverID.String(), 1)
+		writeDB, err := createDatabaseConnection(mux.cfg, serverID.String()+".db", 1)
 		if err != nil {
 			mux.log.Error("could not create database for new server", "error", err.Error())
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte("could not create database: " + err.Error()))
 			return
 		}
-		readDB, err := createDatabaseConnection(mux.cfg, serverID.String(), max(4, runtime.NumCPU()))
+		readDB, err := createDatabaseConnection(mux.cfg, serverID.String()+".db", max(4, runtime.NumCPU()))
 		if err != nil {
 			mux.log.Error("could not create database for new server", "error", err.Error())
 			w.WriteHeader(http.StatusInternalServerError)
@@ -51,10 +51,10 @@ func createServers(mux *httpMux) http.HandlerFunc {
 		applyMigrations(writeDB, mux.log)
 
 		// Add the new database connection to the serverDBs map
-		mux.serverDBs[serverID.String()] = &server{
+		mux.serverDBs.Store(serverID.String(), &server{
 			readDB:  database.New(readDB),
 			writeDB: database.New(writeDB),
-		}
+		})
 
 		// json.NewEncoder(w).Encode(map[string]any{
 		// 	"server": req,

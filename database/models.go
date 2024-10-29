@@ -18,11 +18,11 @@ type Channel struct {
 }
 
 type ChannelMessage struct {
-	MessageID ulid.ULID      `json:"message_id"`
-	ChannelID ulid.ULID      `json:"channel_id"`
-	AuthorID  ulid.ULID      `json:"author_id"`
-	Content   sql.NullString `json:"content"`
-	Timestamp int64          `json:"timestamp"`
+	MessageID ulid.ULID `json:"message_id"`
+	ChannelID ulid.ULID `json:"channel_id"`
+	AuthorID  []byte    `json:"author_id"`
+	Content   string    `json:"content"`
+	Timestamp int64     `json:"timestamp"`
 }
 
 type Config struct {
