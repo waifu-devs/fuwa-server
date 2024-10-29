@@ -97,6 +97,7 @@ func main() {
 	}
 	setServerRoutes(mux)
 	setChannelRoutes(mux)
+	setMessageRoutes(mux)
 	go func() {
 		log.Info("listening on :"+cfg.port, "port", cfg.port)
 		err = server.ListenAndServe()
