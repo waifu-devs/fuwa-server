@@ -8,7 +8,6 @@ import (
 	"github.com/oklog/ulid/v2"
 	"github.com/waifu-devs/fuwa-server/database"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/trace"
 )
 
 func setServerRoutes(mux *httpMux) {
@@ -18,7 +17,7 @@ func setServerRoutes(mux *httpMux) {
 func createServers(mux *httpMux) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		tracer := otel.Tracer("createServers")
-		ctx, span := tracer.Start(r.Context(), "createServers")
+		_, span := tracer.Start(r.Context(), "createServers")
 		defer span.End()
 
 		serverID := ulid.Make()

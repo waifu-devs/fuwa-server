@@ -10,7 +10,6 @@ import (
 	"github.com/oklog/ulid/v2"
 	"github.com/waifu-devs/fuwa-server/database"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/trace"
 )
 
 func setMessageRoutes(mux *httpMux) {

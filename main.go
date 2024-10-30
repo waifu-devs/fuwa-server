@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"context"
+
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
 	"github.com/waifu-devs/fuwa-server/database"
@@ -21,9 +23,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/trace"
-	"go.opentelemetry.io/otel/semconv/v1.4.0"
-	"context"
+	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 )
 
 //go:embed database/migrations/*.sql
