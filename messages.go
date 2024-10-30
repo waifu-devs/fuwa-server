@@ -39,8 +39,7 @@ func createMessage(mux *httpMux) http.HandlerFunc {
 		}
 		writeDBI, ok := mux.serverDBs.Load(serverID)
 		if !ok {
-			w.WriteHeader(http.StatusNotFound)
-			w.Write([]byte("server not found"))
+			writeJSONError(w, http.StatusNotFound, errors.New("server not found"))
 			return
 		}
 		writeDB := writeDBI.(*server).writeDB
@@ -73,8 +72,7 @@ func getMessage(mux *httpMux) http.HandlerFunc {
 		}
 		readDBI, ok := mux.serverDBs.Load(serverID)
 		if !ok {
-			w.WriteHeader(http.StatusNotFound)
-			w.Write([]byte("server not found"))
+			writeJSONError(w, http.StatusNotFound, errors.New("server not found"))
 			return
 		}
 		readDB := readDBI.(*server).readDB
@@ -116,17 +114,16 @@ func listMessages(mux *httpMux) http.HandlerFunc {
 		}
 		readDBI, ok := mux.serverDBs.Load(serverID)
 		if !ok {
-			w.WriteHeader(http.StatusNotFound)
-			w.Write([]byte("server not found"))
+			writeJSONError(w, http.StatusNotFound, errors.New("server not found"))
 			return
 		}
 		readDB := readDBI.(*server).readDB
 
-		tracer := otel.Tracer("listMessages")
-		ctx, span := tracer.Start(r.Context(), "listMessages")
-		defer span.End()
+		// tracer := otel.Tracer("listMessages")
+		// ctx, span := tracer.Start(r.Context(), "listMessages")
+		// defer span.End()
 
-		messages, err := readDB.ListMessages(ctx, database.ListMessagesParams{
+		messages, err := readDB.ListMessages(r.Context(), database.ListMessagesParams{
 			ChannelID: validChannelID,
 			MessageID: validMessageID,
 			Limit:     10,

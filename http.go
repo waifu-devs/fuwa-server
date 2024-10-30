@@ -10,7 +10,9 @@ import (
 
 	"github.com/oklog/ulid/v2"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 // httpMux is a HTTP server
@@ -66,7 +68,7 @@ func (s *httpMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if s.cfg.otelEndpoint != "" && s.cfg.otelServiceName != "" {
 		tracer = otel.Tracer("httpMux")
 	} else {
-		tracer = trace.NewNoopTracerProvider().Tracer("")
+		tracer = noop.NewTracerProvider().Tracer("")
 	}
 
 	ctx, span := tracer.Start(r.Context(), "request-incoming")
@@ -79,7 +81,15 @@ func (s *httpMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	requestID := ulid.Make()
 
-	r = r.WithContext(context.WithValue(ctx, RequestIDContextKey, requestID))
+	span.SetAttributes(
+		attribute.String("http.method", r.Method),
+		attribute.String("http.path", r.URL.Path),
+		attribute.String("http.user_agent", r.Header.Get("User-Agent")),
+		attribute.String("http.request_id", requestID.String()),
+	)
+
+	ctx = context.WithValue(ctx, RequestIDContextKey, requestID)
+	r = r.WithContext(ctx)
 
 	response.w.Header().Set("X-Fuwa-Request-Id", requestID.String())
 

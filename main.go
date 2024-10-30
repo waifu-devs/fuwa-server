@@ -60,7 +60,8 @@ func main() {
 	// Initialize OpenTelemetry SDK if configuration values are present
 	var tracerProvider *sdktrace.TracerProvider
 	if cfg.otelEndpoint != "" && cfg.otelServiceName != "" {
-		exporter, err := otlptracehttp.New(context.Background(), 
+		log.Debug("initializing OpenTelemetry SDK")
+		exporter, err := otlptracehttp.New(context.Background(),
 			otlptracehttp.WithEndpoint(cfg.otelEndpoint),
 			otlptracehttp.WithHeaders(map[string]string{
 				"Authorization": "Bearer " + cfg.otelAuthToken,
