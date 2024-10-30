@@ -145,10 +145,6 @@ func createDatabaseConnection(cfg *config, serverID string, maxOpenConns int) (*
 		return nil, err
 	}
 	db.SetMaxOpenConns(maxOpenConns)
-	err = db.Ping()
-	if err != nil {
-		return nil, err
-	}
 	_, err = db.Exec("PRAGMA temp_store = memory")
 	if err != nil {
 		return nil, err
