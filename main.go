@@ -102,10 +102,9 @@ func main() {
 		serverDBs: serverConnections,
 	}
 	server := &http.Server{
-		Addr:    ":" + cfg.port,
-		Handler: mux,
-		// WriteTimeout:      10 * time.Second,
-		// ReadHeaderTimeout: 10 * time.Second,
+		Addr:              ":" + cfg.port,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 	setServerRoutes(mux)
 	setChannelRoutes(mux)
