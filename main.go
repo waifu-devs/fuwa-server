@@ -74,19 +74,26 @@ func main() {
 			log.Error("could not connect to database", "error", err.Error())
 			panic(err)
 		}
-		defer writeDB.Close()
 		readDB, err := createDatabaseConnection(cfg, serverID, max(4, runtime.NumCPU()))
 		if err != nil {
 			log.Error("could not connect to database", "error", err.Error())
 			panic(err)
 		}
-		defer readDB.Close()
-		serverConnections.Store(strings.TrimSuffix(serverID, ".db"), &server{
+		serverConnections.Store(serverID[:len(serverID)-3], &server{
 			readDB:  database.New(readDB),
 			writeDB: database.New(writeDB),
 		})
-		applyMigrations(writeDB, log)
+		applyMigrations(writeDB, log.With("serverID", serverID[:len(serverID)-3]))
 	}
+
+	defer func() {
+		serverConnections.Range(func(key, value any) bool {
+			server := value.(*server)
+			database.GetDBFromQueries(server.readDB).Close()
+			database.GetDBFromQueries(server.writeDB).Close()
+			return true
+		})
+	}()
 
 	mux := &httpMux{
 		ServeMux:  http.NewServeMux(),
