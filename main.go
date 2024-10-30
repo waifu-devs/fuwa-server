@@ -17,6 +17,13 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
 	"github.com/waifu-devs/fuwa-server/database"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/semconv/v1.4.0"
+	"context"
 )
 
 //go:embed database/migrations/*.sql
@@ -50,6 +57,34 @@ func main() {
 		panic(err)
 	}
 
+	// Initialize OpenTelemetry SDK if configuration values are present
+	var tracerProvider *sdktrace.TracerProvider
+	if cfg.otelEndpoint != "" && cfg.otelServiceName != "" {
+		exporter, err := otlptracehttp.New(context.Background(), 
+			otlptracehttp.WithEndpoint(cfg.otelEndpoint),
+			otlptracehttp.WithHeaders(map[string]string{
+				"Authorization": "Bearer " + cfg.otelAuthToken,
+			}),
+		)
+		if err != nil {
+			log.Error("could not create OTLP trace exporter", "error", err.Error())
+			panic(err)
+		}
+		tracerProvider = sdktrace.NewTracerProvider(
+			sdktrace.WithBatcher(exporter),
+			sdktrace.WithResource(resource.NewWithAttributes(
+				semconv.SchemaURL,
+				semconv.ServiceNameKey.String(cfg.otelServiceName),
+			)),
+		)
+		otel.SetTracerProvider(tracerProvider)
+		defer func() {
+			if err := tracerProvider.Shutdown(context.Background()); err != nil {
+				log.Error("could not shutdown tracer provider", "error", err.Error())
+			}
+		}()
+	}
+
 	// Initialize the serverConnections map
 	serverConnections := &sync.Map{}
 
@@ -80,8 +115,8 @@ func main() {
 			panic(err)
 		}
 		serverConnections.Store(serverID[:len(serverID)-3], &server{
-			readDB:  database.New(readDB),
-			writeDB: database.New(writeDB),
+			readDB:  database.New(database.NewTracedDB(readDB)),
+			writeDB: database.New(database.NewTracedDB(writeDB)),
 		})
 		applyMigrations(writeDB, log.With("serverID", serverID[:len(serverID)-3]))
 	}

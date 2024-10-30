@@ -7,6 +7,8 @@ import (
 
 	"github.com/oklog/ulid/v2"
 	"github.com/waifu-devs/fuwa-server/database"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func setServerRoutes(mux *httpMux) {
@@ -15,19 +17,10 @@ func setServerRoutes(mux *httpMux) {
 
 func createServers(mux *httpMux) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// err := json.NewDecoder(r.Body).Decode(&req)
-		// defer r.Body.Close()
-		// if err != nil {
-		// 	w.WriteHeader(http.StatusBadRequest)
-		// 	w.Write([]byte("could not decode: " + err.Error()))
-		// 	return
-		// }
-		// err = validateCreateServerParams(req)
-		// if err != nil {
-		// 	w.WriteHeader(http.StatusBadRequest)
-		// 	w.Write([]byte("invalid params: " + err.Error()))
-		// 	return
-		// }
+		tracer := otel.Tracer("createServers")
+		ctx, span := tracer.Start(r.Context(), "createServers")
+		defer span.End()
+
 		serverID := ulid.Make()
 
 		// Create a new database file for the new server
@@ -51,8 +44,8 @@ func createServers(mux *httpMux) http.HandlerFunc {
 
 		// Add the new database connection to the serverDBs map
 		mux.serverDBs.Store(serverID.String(), &server{
-			readDB:  database.New(readDB),
-			writeDB: database.New(writeDB),
+			readDB:  database.New(database.NewTracedDB(readDB)),
+			writeDB: database.New(database.NewTracedDB(writeDB)),
 		})
 
 		writeJSON(w, http.StatusOK, map[string]any{

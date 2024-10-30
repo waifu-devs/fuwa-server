@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"os"
 	"path"
+	"strconv"
 )
 
 type config struct {
@@ -17,6 +18,10 @@ type config struct {
 	isWorker         bool
 	encryptionKey    []byte
 	signingKey       []byte
+	otelEndpoint     string
+	otelServiceName  string
+	otelSamplingRate float64
+	otelAuthToken    string
 }
 
 func loadConfigFromEnv() *config {
@@ -30,6 +35,10 @@ func loadConfigFromEnv() *config {
 		storageSecretKey: os.Getenv("FUWA_STORAGE_SECRET_KEY"),
 		encryptionKey:    []byte(os.Getenv("FUWA_ENCRYPTION_KEY")),
 		signingKey:       []byte(os.Getenv("FUWA_SIGNING_KEY")),
+		otelEndpoint:     os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
+		otelServiceName:  os.Getenv("OTEL_SERVICE_NAME"),
+		otelSamplingRate: 1.0,
+		otelAuthToken:    os.Getenv("OTEL_AUTH_TOKEN"),
 	}
 	if c.port == "" {
 		c.port = "6942"
@@ -50,6 +59,11 @@ func loadConfigFromEnv() *config {
 	switch os.Getenv("FUWA_IS_WORKER") {
 	case "1", "true":
 		c.isWorker = true
+	}
+	if rate := os.Getenv("OTEL_SAMPLING_RATE"); rate != "" {
+		if parsedRate, err := strconv.ParseFloat(rate, 64); err == nil {
+			c.otelSamplingRate = parsedRate
+		}
 	}
 	return c
 }
