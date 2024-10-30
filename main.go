@@ -11,8 +11,8 @@ import (
 	"os/signal"
 	"path"
 	"runtime"
-	"strings"
 	"sync"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
