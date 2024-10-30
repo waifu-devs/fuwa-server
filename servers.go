@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"runtime"
 
@@ -33,15 +34,13 @@ func createServers(mux *httpMux) http.HandlerFunc {
 		writeDB, err := createDatabaseConnection(mux.cfg, serverID.String()+".db", 1)
 		if err != nil {
 			mux.log.Error("could not create database for new server", "error", err.Error())
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("could not create database: " + err.Error()))
+			writeJSONError(w, http.StatusInternalServerError, fmt.Errorf("could not create database: %w", err))
 			return
 		}
 		readDB, err := createDatabaseConnection(mux.cfg, serverID.String()+".db", max(4, runtime.NumCPU()))
 		if err != nil {
 			mux.log.Error("could not create database for new server", "error", err.Error())
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("could not create database: " + err.Error()))
+			writeJSONError(w, http.StatusInternalServerError, fmt.Errorf("could not create database: %w", err))
 			return
 		}
 		defer writeDB.Close()
@@ -56,8 +55,8 @@ func createServers(mux *httpMux) http.HandlerFunc {
 			writeDB: database.New(writeDB),
 		})
 
-		// json.NewEncoder(w).Encode(map[string]any{
-		// 	"server": req,
-		// })
+		writeJSON(w, http.StatusOK, map[string]any{
+			"serverID": serverID.String(),
+		})
 	}
 }

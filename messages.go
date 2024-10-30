@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -24,16 +26,14 @@ func createMessage(mux *httpMux) http.HandlerFunc {
 		err := json.NewDecoder(r.Body).Decode(&req)
 		defer r.Body.Close()
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("could not decode: " + err.Error()))
+			writeJSONError(w, http.StatusBadRequest, fmt.Errorf("could not decode: %w", err))
 			return
 		}
 		req.MessageID = ulid.Make()
 		req.Timestamp = time.Now().UnixMilli()
 		req.ChannelID, err = ulid.Parse(channelID)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("invalid channel id"))
+			writeJSONError(w, http.StatusBadRequest, errors.New("invalid channel id"))
 			return
 		}
 		writeDBI, ok := mux.serverDBs.Load(serverID)
@@ -46,12 +46,11 @@ func createMessage(mux *httpMux) http.HandlerFunc {
 		err = writeDB.CreateMessage(r.Context(), req)
 		if err != nil {
 			mux.log.Error("could not create message", "error", err.Error())
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(err.Error()))
+			writeJSONError(w, http.StatusInternalServerError, err)
 			return
 		}
 
-		json.NewEncoder(w).Encode(map[string]any{
+		writeJSON(w, http.StatusOK, map[string]any{
 			"message": req,
 		})
 	}
@@ -63,8 +62,7 @@ func getMessage(mux *httpMux) http.HandlerFunc {
 		messageID := r.PathValue("messageID")
 		validMessageID, err := ulid.Parse(messageID)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("invalid message id"))
+			writeJSONError(w, http.StatusBadRequest, errors.New("invalid message id"))
 			return
 		}
 		readDBI, ok := mux.serverDBs.Load(serverID)
@@ -77,12 +75,11 @@ func getMessage(mux *httpMux) http.HandlerFunc {
 		message, err := readDB.GetMessage(r.Context(), validMessageID)
 		if err != nil {
 			mux.log.Error("could not get message", "error", err.Error())
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("could not get message: " + err.Error()))
+			writeJSONError(w, http.StatusInternalServerError, fmt.Errorf("could not get message: %w", err))
 			return
 		}
 
-		json.NewEncoder(w).Encode(map[string]any{"message": message})
+		writeJSON(w, http.StatusOK, map[string]any{"message": message})
 	}
 }
 
@@ -92,8 +89,7 @@ func listMessages(mux *httpMux) http.HandlerFunc {
 		channelID := r.PathValue("channelID")
 		validChannelID, err := ulid.Parse(channelID)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("invalid channel id"))
+			writeJSONError(w, http.StatusBadRequest, errors.New("invalid channel id"))
 			return
 		}
 		messageID := r.URL.Query().Get("messageID")
@@ -101,8 +97,7 @@ func listMessages(mux *httpMux) http.HandlerFunc {
 		if messageID != "" {
 			validMessageID, err = ulid.Parse(messageID)
 			if err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				w.Write([]byte("invalid message id"))
+				writeJSONError(w, http.StatusBadRequest, errors.New("invalid message id"))
 				return
 			}
 		} else {
@@ -122,12 +117,11 @@ func listMessages(mux *httpMux) http.HandlerFunc {
 		})
 		if err != nil {
 			mux.log.Error("could not list messages", "error", err.Error())
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("could not list messages: " + err.Error()))
+			writeJSONError(w, http.StatusInternalServerError, fmt.Errorf("could not list messages: %w", err))
 			return
 		}
 
-		json.NewEncoder(w).Encode(map[string]any{"messages": messages})
+		writeJSON(w, http.StatusOK, map[string]any{"messages": messages})
 	}
 }
 
@@ -137,8 +131,7 @@ func subscribeMessages(mux *httpMux) http.HandlerFunc {
 		channelID := r.PathValue("channelID")
 		validChannelID, err := ulid.Parse(channelID)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("invalid channel id"))
+			writeJSONError(w, http.StatusBadRequest, errors.New("invalid channel id"))
 			return
 		}
 
@@ -147,8 +140,7 @@ func subscribeMessages(mux *httpMux) http.HandlerFunc {
 		if messageID != "" {
 			validMessageID, err = ulid.Parse(messageID)
 			if err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				w.Write([]byte("invalid message id"))
+				writeJSONError(w, http.StatusBadRequest, errors.New("invalid message id"))
 				return
 			}
 		} else {
@@ -176,8 +168,7 @@ func subscribeMessages(mux *httpMux) http.HandlerFunc {
 			})
 			if err != nil {
 				mux.log.Error("could not list messages", "error", err.Error())
-				w.WriteHeader(http.StatusInternalServerError)
-				w.Write([]byte("could not list messages: " + err.Error()))
+				writeJSONError(w, http.StatusInternalServerError, fmt.Errorf("could not list messages: %w", err))
 				return
 			}
 
@@ -185,7 +176,7 @@ func subscribeMessages(mux *httpMux) http.HandlerFunc {
 				jsonMsg, err := json.Marshal(message)
 				if err != nil {
 					mux.log.Error("could not marshal message", "error", err.Error())
-					w.WriteHeader(http.StatusInternalServerError)
+					writeJSONError(w, http.StatusInternalServerError, fmt.Errorf("could not marshal message: %w", err))
 					return
 				}
 				w.Write([]byte("id: " + message.MessageID.String() + "\n"))

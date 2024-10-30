@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -46,6 +47,17 @@ func (r *httpResponse) Flush() {
 type requestIDContextKey string
 
 const RequestIDContextKey requestIDContextKey = "RequestID"
+
+// Add helper functions for JSON responses
+func writeJSON(w http.ResponseWriter, statusCode int, data any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	json.NewEncoder(w).Encode(data)
+}
+
+func writeJSONError(w http.ResponseWriter, statusCode int, err error) {
+	writeJSON(w, statusCode, map[string]any{"error": err.Error()})
+}
 
 func (s *httpMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 

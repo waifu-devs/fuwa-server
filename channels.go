@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -20,8 +21,7 @@ func listChannels(mux *httpMux) http.HandlerFunc {
 		serverID := r.PathValue("serverID")
 		readDBI, ok := mux.serverDBs.Load(serverID)
 		if !ok {
-			w.WriteHeader(http.StatusNotFound)
-			w.Write([]byte("server not found"))
+			writeJSONError(w, http.StatusNotFound, errors.New("server not found"))
 			return
 		}
 		readDB := readDBI.(*server).readDB
@@ -30,12 +30,11 @@ func listChannels(mux *httpMux) http.HandlerFunc {
 		})
 		if err != nil {
 			mux.log.Error("could not list channels", "error", err.Error())
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("could not list channels: " + err.Error()))
+			writeJSONError(w, http.StatusInternalServerError, err)
 			return
 		}
 
-		json.NewEncoder(w).Encode(map[string]any{"channels": channels})
+		writeJSON(w, http.StatusOK, map[string]any{"channels": channels})
 	}
 }
 
@@ -56,20 +55,17 @@ func createChannels(mux *httpMux) http.HandlerFunc {
 		err := json.NewDecoder(r.Body).Decode(&req)
 		defer r.Body.Close()
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("could not decode: " + err.Error()))
+			writeJSONError(w, http.StatusBadRequest, fmt.Errorf("could not decode: %w", err))
 			return
 		}
 		err = validateCreateChannelParams(req)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("invalid params: " + err.Error()))
+			writeJSONError(w, http.StatusBadRequest, fmt.Errorf("invalid params: %w", err))
 			return
 		}
 		writeDBI, ok := mux.serverDBs.Load(serverID)
 		if !ok {
-			w.WriteHeader(http.StatusNotFound)
-			w.Write([]byte("server not found"))
+			writeJSONError(w, http.StatusNotFound, errors.New("server not found"))
 			return
 		}
 		writeDB := writeDBI.(*server).writeDB
@@ -79,12 +75,11 @@ func createChannels(mux *httpMux) http.HandlerFunc {
 		err = writeDB.CreateChannel(r.Context(), req)
 		if err != nil {
 			mux.log.Error("could not create channel", "error", err.Error())
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(err.Error()))
+			writeJSONError(w, http.StatusInternalServerError, err)
 			return
 		}
 
-		json.NewEncoder(w).Encode(map[string]any{
+		writeJSON(w, http.StatusOK, map[string]any{
 			"channel": req,
 		})
 	}
