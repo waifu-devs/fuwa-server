@@ -19,8 +19,11 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
 	"github.com/waifu-devs/fuwa-server/database"
+	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -38,10 +41,16 @@ func main() {
 	// ctx := context.Background()
 	cfg := loadConfigFromEnv()
 
-	logHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: cfg.logLevel,
-	})
+	var logHandler slog.Handler
+	if cfg.otelLogEndpoint != "" && cfg.otelServiceName != "" {
+		logHandler = initializeOpenTelemetryLogging(cfg)
+	} else {
+		logHandler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+			Level: cfg.logLevel,
+		})
+	}
 	log := slog.New(logHandler)
+
 	if len(cfg.encryptionKey) == 0 {
 		log.Error("missing FUWA_ENCRYPTION_KEY")
 		panic("missing FUWA_ENCRYPTION_KEY")
@@ -210,4 +219,27 @@ func applyMigrations(db *sql.DB, log *slog.Logger) {
 		log.Error("could not apply migrations", "error", err.Error())
 		panic(err)
 	}
+}
+
+func initializeOpenTelemetryLogging(cfg *config) slog.Handler {
+	exporter, err := otlploghttp.New(context.Background(),
+		otlploghttp.WithEndpoint(cfg.otelLogEndpoint),
+		otlploghttp.WithHeaders(map[string]string{
+			"Authorization": "Bearer " + cfg.otelAuthToken,
+		}),
+	)
+	if err != nil {
+		panic(fmt.Sprintf("could not create OTLP log exporter: %v", err))
+	}
+
+	processor := sdklog.NewBatchProcessor(exporter)
+	loggerProvider := sdklog.NewLoggerProvider(
+		sdklog.WithProcessor(processor),
+		sdklog.WithResource(resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceNameKey.String(cfg.otelServiceName),
+		)),
+	)
+
+	return otelslog.NewHandler(cfg.otelServiceName, otelslog.WithLoggerProvider(loggerProvider))
 }
