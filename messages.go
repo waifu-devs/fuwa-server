@@ -9,6 +9,8 @@ import (
 
 	"github.com/oklog/ulid/v2"
 	"github.com/waifu-devs/fuwa-server/database"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func setMessageRoutes(mux *httpMux) {
@@ -43,7 +45,12 @@ func createMessage(mux *httpMux) http.HandlerFunc {
 			return
 		}
 		writeDB := writeDBI.(*server).writeDB
-		err = writeDB.CreateMessage(r.Context(), req)
+
+		tracer := otel.Tracer("createMessage")
+		ctx, span := tracer.Start(r.Context(), "createMessage")
+		defer span.End()
+
+		err = writeDB.CreateMessage(ctx, req)
 		if err != nil {
 			mux.log.Error("could not create message", "error", err.Error())
 			writeJSONError(w, http.StatusInternalServerError, err)
@@ -72,7 +79,12 @@ func getMessage(mux *httpMux) http.HandlerFunc {
 			return
 		}
 		readDB := readDBI.(*server).readDB
-		message, err := readDB.GetMessage(r.Context(), validMessageID)
+
+		tracer := otel.Tracer("getMessage")
+		ctx, span := tracer.Start(r.Context(), "getMessage")
+		defer span.End()
+
+		message, err := readDB.GetMessage(ctx, validMessageID)
 		if err != nil {
 			mux.log.Error("could not get message", "error", err.Error())
 			writeJSONError(w, http.StatusInternalServerError, fmt.Errorf("could not get message: %w", err))
@@ -110,7 +122,12 @@ func listMessages(mux *httpMux) http.HandlerFunc {
 			return
 		}
 		readDB := readDBI.(*server).readDB
-		messages, err := readDB.ListMessages(r.Context(), database.ListMessagesParams{
+
+		tracer := otel.Tracer("listMessages")
+		ctx, span := tracer.Start(r.Context(), "listMessages")
+		defer span.End()
+
+		messages, err := readDB.ListMessages(ctx, database.ListMessagesParams{
 			ChannelID: validChannelID,
 			MessageID: validMessageID,
 			Limit:     10,
@@ -154,6 +171,10 @@ func subscribeMessages(mux *httpMux) http.HandlerFunc {
 		}
 		readDB := readDBI.(*server).readDB
 
+		tracer := otel.Tracer("subscribeMessages")
+		ctx, span := tracer.Start(r.Context(), "subscribeMessages")
+		defer span.End()
+
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.(http.Flusher).Flush()
@@ -161,7 +182,7 @@ func subscribeMessages(mux *httpMux) http.HandlerFunc {
 		lastSentMessageID := validMessageID
 
 		for {
-			messages, err := readDB.ListMessages(r.Context(), database.ListMessagesParams{
+			messages, err := readDB.ListMessages(ctx, database.ListMessagesParams{
 				ChannelID: validChannelID,
 				MessageID: lastSentMessageID,
 				Limit:     10,

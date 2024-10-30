@@ -9,6 +9,8 @@ import (
 
 	"github.com/oklog/ulid/v2"
 	"github.com/waifu-devs/fuwa-server/database"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func setChannelRoutes(mux *httpMux) {
@@ -25,7 +27,12 @@ func listChannels(mux *httpMux) http.HandlerFunc {
 			return
 		}
 		readDB := readDBI.(*server).readDB
-		channels, err := readDB.ListChannels(r.Context(), database.ListChannelsParams{
+
+		tracer := otel.Tracer("listChannels")
+		ctx, span := tracer.Start(r.Context(), "listChannels")
+		defer span.End()
+
+		channels, err := readDB.ListChannels(ctx, database.ListChannelsParams{
 			Limit: 10,
 		})
 		if err != nil {
@@ -70,9 +77,13 @@ func createChannels(mux *httpMux) http.HandlerFunc {
 		}
 		writeDB := writeDBI.(*server).writeDB
 
+		tracer := otel.Tracer("createChannels")
+		ctx, span := tracer.Start(r.Context(), "createChannels")
+		defer span.End()
+
 		req.ChannelID = ulid.Make()
 		req.CreatedAt = time.Now().UnixMilli()
-		err = writeDB.CreateChannel(r.Context(), req)
+		err = writeDB.CreateChannel(ctx, req)
 		if err != nil {
 			mux.log.Error("could not create channel", "error", err.Error())
 			writeJSONError(w, http.StatusInternalServerError, err)

@@ -9,6 +9,8 @@ import (
 	"sync"
 
 	"github.com/oklog/ulid/v2"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // httpMux is a HTTP server
@@ -60,12 +62,15 @@ func writeJSONError(w http.ResponseWriter, statusCode int, err error) {
 }
 
 func (s *httpMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	var tracer trace.Tracer
+	if s.cfg.otelEndpoint != "" && s.cfg.otelServiceName != "" {
+		tracer = otel.Tracer("httpMux")
+	} else {
+		tracer = trace.NewNoopTracerProvider().Tracer("")
+	}
 
-	// ctx, span := s.tracer.Start(r.Context(), "request-incoming")
-	// defer span.End()
-
-	// Tracing stuff
-	ctx := context.Background()
+	ctx, span := tracer.Start(r.Context(), "request-incoming")
+	defer span.End()
 
 	response := &httpResponse{
 		w:          w,
@@ -79,7 +84,7 @@ func (s *httpMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	response.w.Header().Set("X-Fuwa-Request-Id", requestID.String())
 
 	// Handle the request
-	s.ServeMux.ServeHTTP(w, r)
+	s.ServeMux.ServeHTTP(response, r)
 
 	s.log.Info(
 		r.Method+" ["+strconv.FormatInt(int64(response.statusCode), 10)+"] "+r.URL.Path,
