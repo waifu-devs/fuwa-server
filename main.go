@@ -152,8 +152,21 @@ func createDatabaseConnection(cfg *config, serverID string, maxOpenConns int) (*
 	return db, nil
 }
 
+type gooseLogger struct {
+	log *slog.Logger
+}
+
+func (l *gooseLogger) Printf(format string, v ...interface{}) {
+	l.log.Info(fmt.Sprintf(format, v...))
+}
+
+func (l *gooseLogger) Fatalf(format string, v ...interface{}) {
+	l.log.Error(fmt.Sprintf(format, v...))
+}
+
 func applyMigrations(db *sql.DB, log *slog.Logger) {
 	goose.SetBaseFS(dbMigrationsFS)
+	goose.SetLogger(&gooseLogger{log: log})
 	if err := goose.SetDialect("sqlite"); err != nil {
 		log.Error("could not set dialog for goose", "error", err.Error())
 		panic(err)
