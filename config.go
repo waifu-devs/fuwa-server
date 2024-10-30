@@ -22,6 +22,7 @@ type config struct {
 	otelServiceName  string
 	otelSamplingRate float64
 	otelAuthToken    string
+	otelLogEndpoint  string
 }
 
 func loadConfigFromEnv() *config {
@@ -39,6 +40,7 @@ func loadConfigFromEnv() *config {
 		otelServiceName:  os.Getenv("OTEL_SERVICE_NAME"),
 		otelSamplingRate: 1.0,
 		otelAuthToken:    os.Getenv("OTEL_AUTH_TOKEN"),
+		otelLogEndpoint:  os.Getenv("OTEL_LOG_ENDPOINT"),
 	}
 	if c.port == "" {
 		c.port = "6942"

@@ -6,9 +6,12 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/pressly/goose/v3 v3.22.1
+	go.opentelemetry.io/contrib/bridges/otelslog v0.6.0
 	go.opentelemetry.io/otel v1.31.0
+	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.7.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.31.0
 	go.opentelemetry.io/otel/sdk v1.31.0
+	go.opentelemetry.io/otel/sdk/log v0.7.0
 	go.opentelemetry.io/otel/trace v1.31.0
 )
 
@@ -21,6 +24,7 @@ require (
 	github.com/mfridman/interpolate v0.0.2 // indirect
 	github.com/sethvargo/go-retry v0.3.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.31.0 // indirect
+	go.opentelemetry.io/otel/log v0.7.0 // indirect
 	go.opentelemetry.io/otel/metric v1.31.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
